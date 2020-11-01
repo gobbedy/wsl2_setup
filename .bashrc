@@ -70,7 +70,14 @@ fi
 #START_COLOR_BLUE="\\[\e[0;34m\\]"
 #END_COLOR="\\[\e[m\\]"
 
-export PS1="\[\033[01;31m\]\u@\h\[\033[00m\]:\w\[\033[01;31m\]\$\[\033[01;00m\] "
+distro_str=''
+if [[ $(lsb_release -irc | grep -c Ubuntu) -ne 0 ]]; then
+  distro_str='(u)'
+elif [[ $(lsb_release -irc | grep -c Kali) -ne 0 ]]; then
+  distro_str='(k)'
+fi
+
+export PS1="\[\033[01;31m\]\u@\h\[\033[00m\]:\w\[\033[01;31m\]${distro_str}\[\033[01;00m\]\$ "
 
 function diff ()
 {
