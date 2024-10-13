@@ -1,0 +1,581 @@
+export HISTSIZE=200000                   # big big history
+HISTFILESIZE=$HISTSIZE                   # big big history
+
+if [[ ${TERM_PROGRAM} == "vscode" ]]; then
+    export DISPLAY=localhost:10
+fi
+export P4DIFF=p4merge
+
+export PATH_DART=/nfs/projects/metro/gperraul/dart
+export PATH_VALKA=/nfs/projects/metro/gperraul/valka
+export PATH_BARE=/nfs/projects/metro/gperraul/bare_tb_ral
+export PATH_ZURG=/nfs/projects/metro/gperraul/zurg
+export PATH_SMAUG=/nfs/projects/metro/gperraul/smaug
+export PATH_RADIANT=/nfs/projects/metro/gperraul/radiant
+export PATH_ACHRAY=/nfs/projects/metro/gperraul/achray
+export PATH_QUAKE=/nfs/projects/metro/gperraul/quake_dev
+export PATH_GRA=/nfs/projects/metro/gperraul/graviton_dev
+export QUAKE=$PATH_QUAKE
+
+# This should not be necessary!! something weird going on with vscode
+# its as if remote server keeps old environment variables forever
+# probably something to do with caching, see: https://stackoverflow.com/a/67403476/8112889
+#unset PYTHONPATH
+# TODO: some time in the future,, try removing this. then, BEFORE running proj_home, check that "echo $PYTHONPATH" returns empty
+#       -- if it's indeed empty, can remove the above unset command
+
+#export PYTHONPATH=/nfs/projects/metro/gperraul/python_packages
+#export PYTHONPATH=/nfs/projects/metro/gperraul/python38_packages
+
+DART_VERIF=$PATH_DART/verif
+
+GREPEXCLUDES="--exclude-dir=run_* --exclude-dir=results --exclude-dir=*failed* --exclude-dir=logs --exclude-dir=templates --exclude-dir=ctags --exclude-dir=precompile_xilinx --exclude-dir=qlint"
+
+function proj_dart ()
+{
+  proj_home $PATH_DART
+  cd verif/tb_top/testcases/tc_eth_1g_sanity
+  #export AUTOMFT_SKIP_PATH_CMN_TB_SPI=1
+}
+
+function proj_quake ()
+{
+  proj_home $PATH_QUAKE
+  #cd verif/tb_top/testcases/tc_axi4_lite_clk_mon_act_chk
+  cd verif/tb_pcie_cmn/testcases/tc_pcie_msix_mapper
+}
+
+function proj_gra ()
+{
+  proj_home $PATH_GRA
+  cd verif/tb_top/testcases/tc_100ge_caui4_cmac_fec_client_xc_lpbk
+}
+#proj_gra
+
+# turn off annoying beep
+bind "set bell-style none"
+
+# only one tab for autocomplete list
+bind "set show-all-if-ambiguous on"
+
+# get search backward to work with up arrow key and search forward to work with down arrow key
+bind '"\e[A": history-search-backward'
+bind '"\e[B": history-search-forward'
+bind '"\eOA": history-search-backward'
+bind '"\eOB": history-search-forward'
+
+PROMPT_DIRTRIM=3 # shorten path, see bottom of this answer: https://stackoverflow.com/a/3498912
+export PS1="\[\033[01;31m\]\u\[\033[01;00m\]@\h:\w\[\033[01;31m\]\$\[\033[00m\] "
+
+# Avoid duplicates
+HISTCONTROL=ignoredups:erasedups
+# When the shell exits, append to the history file instead of overwriting it
+shopt -s histappend
+
+# Share history between terminals https://unix.stackexchange.com/a/48116
+_bash_history_sync() {
+    builtin history -a
+    HISTFILESIZE=$HISTSIZE
+    builtin history -c
+    builtin history -r
+}
+
+#. <(/nfs/projects/metro/gperraul/python38_packages/cdhist/cdhist.py -i)
+
+history() {
+    _bash_history_sync
+    builtin history "$@"
+}
+# PROMPT_COMMAND='rt=${P4_ROOT}; _bash_history_sync;'
+PROMPT_COMMAND='rt=${P4_ROOT}; reu=${rt}/verif/reuse; verif=${rt}/verif; cmn=${rt}/verif/common; tc=${rt}/verif/tb_top/testcases; client=$(basename ${rt} 2>/dev/null); printf "\033]0;${client}\007"; _bash_history_sync;'
+
+## reedit a history substitution line if it failed
+shopt -s histreedit
+## edit a recalled history line before executing
+shopt -s histverify
+
+pathappend() {
+  for ARG in "$@"
+  do
+    
+    if [ -d "$ARG" ] && [[ ":$PATH:" != *":$ARG:"* ]]; then
+        PATH="${PATH:+"$PATH:"}$ARG"
+    else
+        echo "ERROR: $ARG is not a directory, skipping append to \$PATH"
+    fi
+  done
+}
+VSCODE_PATH=`dirname /home/gperraul/.vscode-server/bin/*/bin/remote-cli/code`
+#pathappend $VSCODE_PATH
+
+function lst ()
+{
+  ls -lt "$@"
+}
+
+#function mini ()
+#{
+#    $P4_ROOT/verif/scripts/regress/launch_regression.pl "$@" $P4_ROOT/verif/scripts/sanity_testcases.csv
+#}
+
+function rl ()
+{
+  readlink -f "$@"
+}
+
+function rr ()
+{
+  rm -rf "$@"
+}
+
+function n () 
+{ 
+   nedit "$@" &
+}
+
+function diff ()
+{
+  meld "$@" & 
+}
+
+function edit ()
+{
+  p4 edit $(rl "$@") # readlink in case it's a symbolic link, like squelch TCs
+  echo "local path(s):"
+  rl "$@"
+}
+
+function e ()
+{
+  edit "$@"
+  if [[ $# -le 2 ]]; then
+    code "$@"
+  fi
+}
+
+function c ()
+{
+  code "$@"
+}
+
+function submit ()
+{
+  # p4 --field "Description=clean up comments" --field "Files=" change -o | p4 change -i
+  p4 submit "$@"
+}
+
+#function vsim ()
+#{
+#  vsim -64 "$@"
+#}
+
+function revert ()
+{
+  p4 revert "$@"
+}
+
+function runb ()
+{
+  args=''
+  if [[ -n "$@" ]]; then
+      args="-seed $@"
+      if [[ $@ =~ "--vcs" ]]; then
+        run -batch --vcs -uvm_medium ${args}
+        return
+      fi
+  fi
+  run -batch -classic -uvm_medium ${args}
+}
+
+function runw ()
+{
+  args=''
+  dir=run_1_waves
+  if [[ -n "$@" ]]; then
+      args="-seed $@"
+      if [[ ! $@ =~ "-output_dir" ]]; then
+        seed=$1
+        dir=run_${seed}_waves
+      else
+        # TODO: this isnt right! need to fix
+        while test $# -gt 0
+        do
+            if [[ "$1" == "-output_dir" ]]; then
+              dir=$2
+            fi
+            break
+        done
+      fi
+  fi
+  if [[ ! $@ =~ "-output_dir" ]]; then
+    args+=" -output_dir ${dir}"
+  fi
+  run -batch -classic -uvm_medium -waves all ${args}
+}
+
+function runv ()
+{
+
+  if ! command -v run &> /dev/null; then
+    echo "bash: type: run: not found" >&2
+    return 1
+  fi
+
+  args=''
+  dir=run_1_visualizer
+  if [[ -n "$@" ]]; then
+      args="-seed $@"
+      if [[ ! $@ =~ "-output_dir" ]]; then
+        seed=$1
+        dir=run_${seed}_visualizer
+      else
+        while test $# -gt 0
+        do
+            if [[ "$1" == "-output_dir" ]]; then
+              dir=$2
+            fi
+            break
+        done
+      fi
+  fi
+  if [[ ! $@ =~ "-output_dir" ]]; then
+    args+=" -output_dir ${dir}"
+  fi
+
+
+
+
+  ### START COPY TO OUTPUT DIR ###
+
+  # grab testcase file
+  tc_filename=$(basename $PWD).sv
+  eval `p4 set -q P4CLIENT`
+  # grab all checkouts
+  mapfile -t file_array < <( p4 opened -su $USER -C $P4CLIENT  2>/dev/null | grep -oP '^\S+' )
+  mapfile -t files_checkedout < <( p4 where $(printf '%s\n' "${file_array[@]}") | grep -oP '\S+$' )
+
+
+  # copy testcase and checkouts to run dir
+  mkdir -p ${dir}
+  mkdir -p ${dir}/workspace_state
+  checkout_dir=${dir}/workspace_state/checkouts
+  testcase_files_dir=${dir}/workspace_state/testcase
+  mkdir -p ${checkout_dir}
+  mkdir -p ${testcase_files_dir}
+  workspace_copy_log=${dir}/workspace_state/workspace_copy.log
+  checkouts_list=${checkout_dir}/checkouts.txt
+
+  printf "%s\n" "${files_checkedout[@]}" > ${checkouts_list}
+
+  if [[ ${#files_checkedout[@]} -gt 30 ]]; then
+    echo "WARNING: Not copying checkouts because more than 30 checkouts (${#files_checkedout[@]})" | tee ${workspace_copy_log} >&2
+  else
+    total_file_size_mb=$(du -cB 1000000 "${files_checkedout[@]}" | tail -1 | cut -f 1)
+    if [[ ${total_file_size_mb} -gt 50 ]]; then
+        echo "WARNING: Not copying checkouts because sum of file sizes (${total_file_size_mb}MB) exceeds 50MB" | tee ${workspace_copy_log} >&2
+    else
+        for file in "${files_checkedout[@]}"
+        do
+          cp --parent $file ${dir}/checkouts
+        done
+        echo "Checkouts copied to ${checkout_dir} successfully. See ${checkouts_list} for a list of copied files" | tee ${workspace_copy_log}
+        cp --parent {tc_filename} ${testcase_files_dir}
+        cp --parent common.mft ${testcase_files_dir}
+        echo "Testcase files copied to ${testcase_files_dir} successfully." | tee ${workspace_copy_log}
+
+    fi
+  fi
+
+  # TODO 0: test that everything is copied correctly to both checkouts and testcase dir
+  # TODO 1: make sure workspace_copy.log looks good
+  # TODO 2: make sure checkouts.txt looks good
+  # TODO 3: update runw and runb
+
+
+
+
+  #echo run -batch -uvm_medium -waves all ${args}
+  #return
+  run -batch -uvm_medium -waves all ${args}
+}
+
+function lsh ()
+{
+    p4 filelog -t "$@"  | tail -n +2
+}
+
+function pdiff ()
+{
+    # output will show < for latest (LHS) and > for previous (RHS)
+    if [[ $# -eq 1 ]]; then
+        file="$@"
+        prev=$(lsh $file | h2 | t1 | cut -d' ' -f2)
+        p4 diff2 $file#head $file$prev # compares latest revision to previous
+        # p4 diff2 $file#have $file#head # compares workspace's file to latest
+    else
+        p4 diff2 "$@"
+    fi
+}
+
+function mediff ()
+{
+    # output will show < for latest (LHS) and > for my version (RHS) (no way to flip this!)
+    # also note: diff2 only supports comparing two depot versions, so need to use diff for comparing depot to workspace
+    file="$@"
+    p4 diff $file#head # compares latest to workspace's file
+}
+
+function h ()
+{
+    head "$@"
+}
+
+function h1 ()
+{
+    head -1 "$@"
+}
+
+function h2 ()
+{
+    head -2 "$@"
+}
+
+function h3 ()
+{
+    head -3 "$@"
+}
+
+function h4 ()
+{
+    head -4 "$@"
+}
+
+function h5 ()
+{
+    head -5 "$@"
+}
+
+function h6 ()
+{
+    head -6 "$@"
+}
+
+function h7 ()
+{
+    head -7 "$@"
+}
+
+function h8 ()
+{
+    head -8 "$@"
+}
+
+function h9 ()
+{
+    head -9 "$@"
+}
+
+function t ()
+{
+    tail "$@"
+}
+
+function t1 ()
+{
+    tail -1 "$@"
+}
+
+function t2 ()
+{
+    tail -2 "$@"
+}
+
+function t3 ()
+{
+    tail -3 "$@"
+}
+
+function t4 ()
+{
+    tail -4 "$@"
+}
+
+function t5 ()
+{
+    tail -5 "$@"
+}
+
+function t6 ()
+{
+    tail -6 "$@"
+}
+
+function t7 ()
+{
+    tail -7 "$@"
+}
+
+function t8 ()
+{
+    tail -8 "$@"
+}
+
+function t9 ()
+{
+    tail -9 "$@"
+}
+
+function bomb ()
+{
+    # usage:
+    #   bomb NUM_SIMS [args to launch_regression.pl]
+    # eg.
+    # bomb 20 -mailfreq 15
+    num_times=$1
+    shift
+    csv=$(mktemp)
+    find_testcases.pl --num_times ${num_times} --output ${csv} --tc $(basename $PWD)
+    launch_regression.pl "$@" $csv
+    rm $csv
+}
+
+
+
+function mini ()
+{
+   csv=${P4_ROOT}/verif/scripts/sanity_testcases.csv
+   client=$(basename ${P4_ROOT} 2>/dev/null)
+   datetime_suffix=$(date +"%y%m%d_%H%M")
+   results=/nfs/projects/metro/${USER}/regression/${client}/${datetime_suffix}
+   launch_regression.pl --results ${results} "$@" "${csv}"
+}
+
+# print local path of all files containing "top_hdl" opened by any of my workspaces:
+# for clientFile in `p4 -ztag opened -u gperraul | awk '/clientFile/ {print $3}' | grep top_hdl`; do client=$(echo $clientFile | grep -oPm 1 '//\K\w+'); client_root=$(p4 -c $client -F %clientRoot% -ztag info); echo $clientFile | sed "s,//$client,$client_root,"; done
+# breakdown:
+# p4 -ztag opened -u gperraul | awk '/clientFile/ {print $3}'   ---> find all files opened by me, printed in "clientFile" format, eg //gperraul_graviton_dev__15/verif/common/modules/top_hdl.sv
+# p4 -ztag opened -u gperraul | awk '/clientFile/ {print $3}' | grep top_hdl  ---> same as above, but restricted to just those files containing top_hdl, let's call this whole string X
+# client=$(echo $clientFile | grep -oPm 1 '//\K\w+') ---> grab the client (eg gperraul_graviton_dev__15 in example two lines up), let's call this A
+# client_root=$(p4 -c $client -F %clientRoot% -ztag info) ---> get client root from client (eg /nfs/projects/metro/gperraul/graviton_dev__15), let's call this B
+# echo $clientFile | sed "s,//$client,$client_root," ---> convert "//gperraul_graviton_dev__15/verif/common/modules/top_hdl.sv" to "/nfs/projects/metro/gperraul/graviton_dev__15/verif/common/modules/top_hdl.sv", let's call this C
+# for clientFile in `X` do A; B; C; done ---> for all files (in 'clientFile' format) containing top_hdl opened by me (X), extract the client (A), extract the client root (B), and print the local path (C)
+
+function opened ()
+{
+  declare -a file_array
+  if [[ -z "$@" ]]; then
+      # if no arguments, grab all files of current workspace
+      eval `p4 set -q P4CLIENT`
+      mapfile -t file_array < <( p4 opened -su $USER -C $P4CLIENT | grep -oP '^\S+' )
+      # this might be simpler but untested
+      # mapfile -t file_array < <( p4 opened | grep -oP '^\S+' )
+      # convert names to local file system
+      if [[ -n ${file_array} ]]; then
+          p4 where $(printf '%s\n' "${file_array[@]}") | grep -oP '\S+$' # 'p4 have' causes an issue when file is not checked in yet (first time add)
+      fi
+  else
+      # else, grab files in all of current user's workspaces that match pattern (where pattern is the present function's argument)
+      mapfile -t workspace_array < <( p4 clients --me -e "$@" | cut -d' ' -f2 )
+      if [[ -z ${workspace_array} ]]; then
+          echo "No workspaces matching $@"
+          return 1
+      fi
+      #separator=", "
+      #workspaces="$( printf "${separator}%s" "${workspace_array[@]}" )"
+      #workspaces="${workspaces:${#separator}}" # remove leading separator
+      #echo "Searching in the following workspaces: ${workspaces}"
+      found_file=0
+      for workspace in "${workspace_array[@]}"
+      do
+          mapfile -t file_array < <( p4 opened -su $USER -C ${workspace} 2>/dev/null | grep -oP '^\S+' )
+          # convert names to local file system
+          if [[ -n ${file_array} ]]; then
+              p4 -c ${workspace} where $(printf '%s\n' "${file_array[@]}") | grep -oP '\S+$' # 'p4 have' causes an issue when file is not checked in yet (first time add)
+              found_file=1
+          fi
+      done
+      if [[ ${found_file} == 0 ]]; then
+          echo "File(s) not opened anywhere."
+      fi
+  fi
+}
+
+checkin ()
+{
+    p4_checkin.sh -a "$@"
+}
+
+# print the list of files changed in a specific changelist
+function describe ()
+{
+  # see https://stackoverflow.com/a/6387381
+  p4 where $(p4 -Ztag -F "%depotFile%" files @="$@")  | grep -oP '\S+$'
+}
+
+function vis ()
+{
+  if [[ -d "$1" ]]; then
+    run_dir="$1"
+    qwave="${run_dir}/qwave.db"
+  else
+    run_dir=$(dirname "$1")
+    qwave="$1"
+  fi
+  shift
+  dfile="${run_dir}/vis_d.bin"
+  if [[ ! -f "${qwave}" ]]; then
+    echo "${qwave} does not exist" 1>&2
+    return 1
+  fi
+  if [[ ! -f "${dfile}" ]]; then
+    echo "${dfile} does not exist" 1>&2
+    return 1
+  fi
+  visualizer +designfile="${dfile}" -wavefile "${qwave}" "$@" &
+}
+
+function grepe {
+    grep $GREPEXCLUDES "$@"
+}
+
+function err {
+    error "$@"
+}
+
+# latest run logfile in current testcase directory
+function logl() {
+    recent=1
+    if [[ -n $1 ]]; then
+        recent=$1
+    fi
+    log=`ls -t run_*/transcript | head -n $recent | t1`
+    echo "log var has been set to:"
+    echo "$log"
+}
+
+function errl() {
+    recent=1
+    if [[ -n $1 ]]; then
+        recent=$1
+    fi
+    log=`ls -t run_*/transcript | head -n $recent | t1`
+    err "$log"
+    echo "errors come from \$log, ie: $log"
+}
+
+function lll() {
+    recent=1
+    if [[ -n $1 ]]; then
+        recent=$1
+    fi
+    log=`ls -t run_*/transcript | head -n $recent | t1`
+    ll $log
+}
+
+
+if [[ $0 == "/bin/bash" ]]; then
+    /home/gperraul/.conda/envs/bash_test2/bin/bash
+fi
+
+#NOTE: check .my_bashrc_defaults for other customizations!!
+#shopt -u direxpand
