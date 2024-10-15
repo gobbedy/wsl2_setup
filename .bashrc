@@ -28,7 +28,7 @@ export EMAIL=guigui.the.bulldozer@gmail.com
 # get xming to work
 # combination of https://stackoverflow.com/a/61110604/8112889 and https://stackoverflow.com/a/61110604/8112889
 # more info here: https://github.com/microsoft/WSL/issues/4106
-export DISPLAY=$(ip route | awk '{print $3; exit}'):0
+#export DISPLAY=$(ip route | awk '{print $3; exit}'):0
 export LIBGL_ALWAYS_INDIRECT=1
 
 if [[ $- == *i* ]]; then
@@ -46,8 +46,43 @@ if [[ $- == *i* ]]; then
   bind '"\eOB": history-search-forward'
 fi
 
-# append to the history file, don't overwrite it
+# Avoid duplicates
+HISTCONTROL=ignoredups:erasedups
+# When the shell exits, append to the history file instead of overwriting it
 shopt -s histappend
+
+# Share history between terminals https://unix.stackexchange.com/a/48116
+_bash_history_sync() {
+    builtin history -a
+    HISTFILESIZE=$HISTSIZE
+    builtin history -c
+    builtin history -r
+}
+
+history() {
+    _bash_history_sync
+    builtin history "$@"
+}
+
+# PROMPT_COMMAND='rt=${P4_ROOT}; _bash_history_sync;'
+PROMPT_COMMAND='rt=${P4_ROOT}; reu=${rt}/verif/reuse; verif=${rt}/verif; cmn=${rt}/verif/common; tc=${rt}/verif/tb_top/testcases; client=$(basename ${rt} 2>/dev/null); printf "\033]0;${client}\007"; _bash_history_sync;'
+
+## reedit a history substitution line if it failed
+shopt -s histreedit
+## edit a recalled history line before executing
+shopt -s histverify
+
+pathappend() {
+  for ARG in "$@"
+  do
+    
+    if [ -d "$ARG" ] && [[ ":$PATH:" != *":$ARG:"* ]]; then
+        PATH="${PATH:+"$PATH:"}$ARG"
+    else
+        echo "ERROR: $ARG is not a directory, skipping append to \$PATH"
+    fi
+  done
+}
 
 # check the window size after each command and, if necessary,
 # update the values of LINES and COLUMNS.
@@ -79,6 +114,11 @@ fi
 
 export PS1="\[\033[01;31m\]\u@\h\[\033[00m\]:\w\[\033[01;31m\]${distro_str}\[\033[01;00m\]\$ "
 
+function rl ()
+{
+  readlink -f "$@"
+}
+
 function diff ()
 {
   if [[ $# -eq 2 ]]; then
@@ -90,7 +130,7 @@ function diff ()
 
 function n () 
 { 
-  nedit -xrm '*font: -*-dina-medium-r-*-*-16-*-*-*-*-*-*-*' "$@" &
+  nedit "$@" &
 }
 
 # GIT ALIASES BEGIN HERE
@@ -189,5 +229,12 @@ function proj ()
 
 function cdh ()
 {
-  cd /home/gobbedy
+  cd /home/guillaume
 }
+
+function c ()
+{
+  code "$@"
+}
+
+shopt -u direxpand
